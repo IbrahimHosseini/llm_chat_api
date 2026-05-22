@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from openai import AsyncOpenAI
 from config import settings
 from .schemas import ChatRequest
-from .tools import TOOLS, get_current_time
+from .tools import TOOLS, TOOL_MAP
 
 app = FastAPI()
 
@@ -17,30 +17,64 @@ async def chat(input: ChatRequest):
     response = await client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=messages,
-        tools=TOOLS
+        tools=TOOLS,
+        stream=True
     )
 
-    if response.choices[0].message.tool_calls:
-        tool_call = response.choices[0].message.tool_calls[0]
+    arguments = ""
+    content = ""
+    tool_call_id = None
+    tool_name = None
 
-        args = json.loads(tool_call.function.arguments)
-        result = get_current_time(**args)
+    async for chunk in response:
+        delta = chunk.choices[0].delta
 
-        messages.append(response.choices[0].message)
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tool_call.id,
-            "content": json.dumps(result)
-        })
+        if delta.content is not None:
+                content += delta.content
 
-        final = await client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=messages,
-            tools=TOOLS
-        )
-        return final.choices[0].message.content
+        if delta.tool_calls is not None:
 
-    return response.choices[0].message.content
+            if delta.tool_calls[0].id is not None:
+                tool_call_id = delta.tool_calls[0].id
+            
+            if delta.tool_calls[0].function.name is not None:
+                tool_name = delta.tool_calls[0].function.name
+
+            argument = delta.tool_calls[0].function.arguments
+            arguments += argument
+
+    if tool_name is not None:
+        
+        if tool_call_id is not None:
+
+            args = json.loads(arguments)
+            result = TOOL_MAP[tool_name](**args)
+
+            messages.append({
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": arguments
+                    }
+                }]
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": json.dumps(result)
+            })
+
+            final = await client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=messages,
+                tools=TOOLS
+            )
+            return final.choices[0].message.content
+
+    return content
 
     
 
