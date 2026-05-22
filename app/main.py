@@ -6,14 +6,23 @@ from openai import AsyncOpenAI
 from config import settings
 from .schemas import ChatRequest
 from .tools import TOOLS, TOOL_MAP
+from collections import defaultdict
 
 app = FastAPI()
 
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
+conversation_store = defaultdict(list)
+
 @app.post("/chat")
 async def chat(input: ChatRequest):
-    messages = [m.model_dump() for m in input.messages]
+
+    history = conversation_store.get(input.session_id, [])
+
+    messages = history + [m.model_dump() for m in input.messages]
+
+    conversation_store[input.session_id].append(input.messages[-1].model_dump())
+
     response = await client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=messages,
@@ -72,12 +81,13 @@ async def chat(input: ChatRequest):
                 messages=messages,
                 tools=TOOLS
             )
-            return final.choices[0].message.content
+            final_content = final.choices[0].message.content
 
+            assistant_message = {"role": "assistant", "content": final_content}
+            conversation_store[input.session_id].append(assistant_message)
+
+            return final_content
+
+    user_content = {"role": "user", "content": content}
+    conversation_store[input.session_id].append(user_content)
     return content
-
-    
-
-
-
-    

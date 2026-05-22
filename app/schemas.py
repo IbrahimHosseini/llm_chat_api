@@ -14,5 +14,6 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
+    session_id: str
     messages: list[ChatMessage]
 
