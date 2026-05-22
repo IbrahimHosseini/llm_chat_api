@@ -1,10 +1,8 @@
 # app/main.py
 
 import json
-from pickle import NONE
 from fastapi import FastAPI
 from openai import AsyncOpenAI
-from fastapi.responses import StreamingResponse
 from config import settings
 from .schemas import ChatRequest
 from .tools import TOOLS, get_current_time
@@ -19,8 +17,7 @@ async def chat(input: ChatRequest):
     response = await client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=messages,
-        tools=TOOLS,
-        tool_choice={"type": "function", "function": {"name": "get_current_time"}}
+        tools=TOOLS
     )
 
     if response.choices[0].message.tool_calls:
