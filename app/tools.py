@@ -18,7 +18,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_current_time",
-            "description": "Get current time and timezone",
+            "description": "Get the EXACT current time for a given timezone. Always use this tool when asked about current time - never guess.",
             "parameters": {
                 "type": "object",
                 "properties": {

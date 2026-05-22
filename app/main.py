@@ -19,10 +19,11 @@ async def chat(input: ChatRequest):
     response = await client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=messages,
-        tools=TOOLS
+        tools=TOOLS,
+        tool_choice={"type": "function", "function": {"name": "get_current_time"}}
     )
 
-    if response.choices[0].finish_reason == "tool_calls":
+    if response.choices[0].message.tool_calls:
         tool_call = response.choices[0].message.tool_calls[0]
 
         args = json.loads(tool_call.function.arguments)
