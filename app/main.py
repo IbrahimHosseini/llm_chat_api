@@ -41,9 +41,9 @@ async def chat(input: ChatRequest):
             messages=messages,
             tools=TOOLS
         )
-        return final
+        return final.choices[0].message.content
 
-    return response
+    return response.choices[0].message.content
 
     
 
