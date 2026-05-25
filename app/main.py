@@ -1,8 +1,10 @@
 # app/main.py
 
 import json
+import random
+import asyncio
 from fastapi import FastAPI
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError, APIStatusError
 from config import settings
 from .schemas import ChatRequest
 from .tools import TOOLS, TOOL_MAP
@@ -15,18 +17,35 @@ client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 conversation_store = defaultdict(list)
 
 @app.post("/chat")
-async def chat(input: ChatRequest):
+async def chat(input: ChatRequest, max_retries: int = 3):
 
     history = conversation_store.get(input.session_id, [])
 
     messages = history + [m.model_dump() for m in input.messages]
 
-    response = await client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=messages,
-        tools=TOOLS,
-        stream=True
-    )
+    for attempt in range(max_retries):
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=messages,
+                tools=TOOLS,
+                stream=True
+            )
+            break
+        except RateLimitError as e:
+            if attempt == max_retries - 1:
+                raise
+            wait = (2 ** attempt) + random.uniform(0,1) #jitter
+            await asyncio.sleep(wait) 
+
+        except APIStatusError as e:
+            if e.status_code >= 500:
+                if attempt == max_retries - 1:
+                    raise
+                wait = (2 ** attempt) + random.uniform(0,1)
+                await asyncio.sleep(wait)
+            else:
+                raise
 
     arguments = ""
     content = ""
