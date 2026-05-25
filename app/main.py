@@ -16,14 +16,16 @@ client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 conversation_store = defaultdict(list)
 
+MAX_RETRIES = 3
+
 @app.post("/chat")
-async def chat(input: ChatRequest, max_retries: int = 3):
+async def chat(input: ChatRequest):
 
     history = conversation_store.get(input.session_id, [])
 
     messages = history + [m.model_dump() for m in input.messages]
 
-    for attempt in range(max_retries):
+    for attempt in range(MAX_RETRIES):
         try:
             response = await client.chat.completions.create(
                 model="gpt-4.1-mini",
@@ -33,14 +35,14 @@ async def chat(input: ChatRequest, max_retries: int = 3):
             )
             break
         except RateLimitError as e:
-            if attempt == max_retries - 1:
+            if attempt == MAX_RETRIES - 1:
                 raise
             wait = (2 ** attempt) + random.uniform(0,1) #jitter
             await asyncio.sleep(wait) 
 
         except APIStatusError as e:
             if e.status_code >= 500:
-                if attempt == max_retries - 1:
+                if attempt == MAX_RETRIES - 1:
                     raise
                 wait = (2 ** attempt) + random.uniform(0,1)
                 await asyncio.sleep(wait)
