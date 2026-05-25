@@ -21,8 +21,6 @@ async def chat(input: ChatRequest):
 
     messages = history + [m.model_dump() for m in input.messages]
 
-    conversation_store[input.session_id].append(input.messages[-1].model_dump())
-
     response = await client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=messages,
@@ -51,6 +49,8 @@ async def chat(input: ChatRequest):
 
             argument = delta.tool_calls[0].function.arguments
             arguments += argument
+
+    conversation_store[input.session_id].append(input.messages[-1].model_dump())
 
     if tool_name is not None:
         
